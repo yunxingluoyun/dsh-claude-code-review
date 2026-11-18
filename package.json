@@ -1,0 +1,26 @@
+{
+  "name": "dsh-code-review",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Port of Claude Code's /code-review to DeepSeek Harness: parallel review agents, confidence scoring, and a filtered pull request report.",
+  "license": "MIT",
+  "exports": {
+    ".": "./lib/index.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "lib",
+    "locale",
+    "docs",
+    "icon.svg",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

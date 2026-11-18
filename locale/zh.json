@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "代码审查",
+    "description": "添加 /code-review：按改动规模规划 1 到 5 个审查代理，为每个代理准备自包含的审查包（diff、规范、blame），对问题打置信度分，只保留高置信度问题。拉取请求通过 gh 读取；只有加 --post 才发布评论。--fast 跳过验证，--thorough 逐条验证。审查代理使用当前模型，因此一次审查会消耗额外 token。",
+    "detail": "docs/DETAIL.zh.md"
+  }
+}

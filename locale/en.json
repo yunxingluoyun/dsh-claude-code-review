@@ -1,0 +1,7 @@
+{
+  "meta": {
+    "title": "Code review",
+    "description": "Adds /code-review: plans one to five review agents by change size, gives each a self-contained packet (diff, guidance, blame), scores findings for confidence, and keeps only high-confidence issues. Pull requests are read with gh; a comment is posted only with --post. --fast skips verification, --thorough verifies every finding. Review agents run on the current model, so a review spends extra tokens.",
+    "detail": "docs/DETAIL.md"
+  }
+}
