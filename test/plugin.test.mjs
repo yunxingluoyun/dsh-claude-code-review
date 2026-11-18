@@ -28,7 +28,7 @@ function mount(config = {}) {
 let root = ''
 
 before(async () => {
-  root = await mkdtemp(path.join(os.tmpdir(), 'dsh-code-review-plugin-'))
+  root = await mkdtemp(path.join(os.tmpdir(), 'dsh-claude-code-review-plugin-'))
   git(root, ['init', '-b', 'main'])
   git(root, ['config', 'user.name', 'Test User'])
   git(root, ['config', 'user.email', 'test@example.com'])
@@ -105,6 +105,51 @@ test('help returns usage text', () => {
   const result = registered.command.handler({ agent: { followup: () => {} }, rawInput: '--help' })
   assert.equal(result.kind, 'success')
   assert.match(result.text, /Usage: \/code-review/)
+})
+
+test('the skill body reflects the configured settings', () => {
+  const registered = mount({
+    threshold: 92,
+    verificationMode: 'thorough',
+    reviewerProvider: 'deepseek',
+    reviewerModel: 'deepseek-chat',
+  })
+  assert.match(registered.skill.content, /Confidence threshold: 92/)
+  assert.match(registered.skill.content, /Verification: thorough/)
+  assert.match(registered.skill.content, /provider: "deepseek", model: "deepseek-chat"/)
+})
+
+test('invalid configuration fails at activation instead of being ignored', () => {
+  assert.throws(() => mount({ threshold: 101 }), /config "threshold" must be a number from 0 to 100/)
+  assert.throws(() => mount({ skipDrafts: 'yes' }), /config "skipDrafts" must be true or false/)
+  assert.throws(() => mount({ verificationMode: 'quick' }), /config "verificationMode" must be one of/)
+  assert.throws(() => mount({ unknownSetting: 1 }), /Unknown dsh-claude-code-review config key "unknownSetting"/)
+  assert.equal(mount({ threshold: 0 }).skill.content.includes('Confidence threshold: 0'), true)
+})
+
+test('conflicting options and help precedence are handled', () => {
+  const registered = mount()
+  const help = registered.command.handler({ agent: { followup: () => {} }, rawInput: '--help --nope' })
+  assert.equal(help.kind, 'success')
+  assert.match(help.text, /Usage: \/code-review/)
+  const prBase = registered.command.handler({ agent: { followup: () => {} }, rawInput: '--pr --base main' })
+  assert.equal(prBase.kind, 'error')
+  assert.match(prBase.text, /--base cannot be combined with --pr/)
+  const localTarget = registered.command.handler({ agent: { followup: () => {} }, rawInput: '--local 123' })
+  assert.equal(localTarget.kind, 'error')
+  assert.match(localTarget.text, /cannot be combined with --local/)
+})
+
+test('the command accepts a zero confidence threshold', () => {
+  const registered = mount({ threshold: 80 })
+  const messages = []
+  const result = registered.command.handler({
+    agent: { followup: (message) => messages.push(message) },
+    rawInput: '--threshold 0 --local',
+  })
+  assert.equal(result.kind, 'success')
+  assert.match(messages[0].content[0].text, /Confidence threshold: 0/)
+  assert.match(messages[0].source.summary, /threshold 0/)
 })
 
 test('the tool returns a packet for the session working directory', async () => {

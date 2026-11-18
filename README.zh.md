@@ -16,10 +16,11 @@
 
 本目录是一个 bundle 包。通过 **Plugins → Add plugin**（或 `plugin_manager` 的 `install_bundle`，以本目录为目标）安装后，会在该 profile 的每个新会话中提供 `/code-review` 命令、`code-review` 技能以及 `code_review_context` 工具。
 
-它目前以指向本目录的 `link:` 依赖形式安装在 `desktop` profile 中。移动或删除本目录会使插件失效；如需在移动后继续使用，请从新位置重新安装。
+从本地目录安装会把它链接进 profile，而不是复制。因此移动或删除本目录会使插件失效；如需在移动后继续使用，请从新位置重新安装。
 
 ## 环境要求
 
+- DeepSeek Harness 0.2.2 或更新版本（`package.json` 中声明了 `engines.dsh`）。
 - 会话环境中有 `git`。
 - 拉取请求模式还需要安装并认证 GitHub CLI（`gh`，`gh auth login`）。若没有，`/code-review` 会改为审查本地改动。
 - 会话的 agent preset 需暴露 `subagent` 与 `read` 以支持完整工作流；`bash` 仅 `--post` 时需要。没有 `subagent` 时，方法论会退化为顺序审查。
@@ -34,13 +35,15 @@
 /code-review --local             对照检测出的基线分支审查本地改动
 /code-review --base develop      对照 develop 审查本地改动
 /code-review 123 --post          有问题达到标准时，把报告作为拉取请求评论发表
-/code-review --threshold 90      提高置信度阈值
+/code-review --threshold 90      提高置信度阈值（0 表示报告所有发现）
 /code-review --force             即使上下文判定不可审查也照常审查
 /code-review --fast              跳过独立验证（明显更快，但可靠性更低）
 /code-review --thorough          每条发现一个验证者，而非每批一个
 ```
 
 该命令把审查工作流以名为 "code review" 的折叠上下文通知提交给当前会话；在对话记录中展开该行即可查看完整指令。审查结束后报告会出现在聊天中。`code-review` 技能则让你在日常对话中请求审查时，把同一工作流暴露给模型。
+
+`--base` 隐含 `--local`，不能与 `--pr` 同时使用；拉取请求目标也不能与 `--local` 同时使用。`--threshold` 接受 `0`，表示无论置信度高低都报告每条发现。
 
 ## 审查包
 
@@ -50,7 +53,7 @@
 - `verify.md` —— 目标事实、指引、diff 以及验证环节使用的置信度量表。
 - `context.md` 与 `diff.patch` —— 供主代理参考的副本；主代理无需读取 diff。
 
-该工具绝不写入仓库，也绝不发表任何内容。
+该工具绝不写入仓库，也绝不发表任何内容。审查包会保留供检查，但会过期：下一次运行会清理超过 24 小时的 `dsh-claude-code-review-*` 目录。
 
 ## 性能
 
@@ -70,7 +73,7 @@
 
 | 字段 | 默认值 | 含义 |
 |---|---|---|
-| `threshold` | `80` | 未指定 `--threshold` 时 `/code-review` 使用的置信度阈值 |
+| `threshold` | `80` | 未指定 `--threshold` 时 `/code-review` 使用的置信度阈值（`0`–`100`；`0` 表示报告所有发现） |
 | `maxDiffBytes` | `120000` | 审查包中保留的 diff 字节数；更大的 diff 会在行边界截断 |
 | `verificationMode` | `balanced` | `balanced`（每批一个验证者）、`fast`（无验证者）或 `thorough`（每条发现一个验证者） |
 | `maxCodeContextBytes` | `180000` | 角色文件中保留的周边代码字节数 |
@@ -89,11 +92,14 @@
 | `maxGuidanceFileBytes` | `32768` | 单个指引文件的上限 |
 | `maxDiscussionItems` | `20` | 保留的既往拉取请求评论/审查数 |
 | `maxDiscussionChars` | `4000` | 单条评论的上限 |
+| `maxDiscussionPages` | `5` | 每个讨论来源最多抓取的页数（每页 100 条） |
 | `skipDrafts` | `false` | 将草稿拉取请求视为不可审查 |
 | `skipAlreadyReviewed` | `false` | 将 head commit 已带 DSH 审查标记的拉取请求视为不可审查 |
 | `base` | 自动检测 | 本地比对的默认基线 |
 | `gitTimeoutMs` | `30000` | 单条 git 命令超时 |
 | `ghTimeoutMs` | `25000` | 单条 gh 命令超时 |
+
+插件激活时会校验配置：未知键、类型错误、数值越界、未知的 `verificationMode` 都会报错并指出字段名，而不是被静默忽略。配置写在 `cordis.patch.yml` 的 `code-review` 行；本 bundle 未附带 Config schema，因为无依赖、以链接方式安装的 bundle 无法解析 DSH 的 Schemastery 包。
 
 ## 刻意不做的事
 
@@ -115,6 +121,16 @@ locale/                 插件管理器的标题与描述
 docs/                   详情页与特色图片
 ```
 
+## 开发
+
+本 bundle 没有运行时依赖。运行测试：
+
+```
+node --test
+```
+
+测试会创建临时 git 仓库；只需要 `git`，不需要网络或 `gh` 认证。
+
 ## 卸载
 
-在 profile 的 Plugins 页面移除该 bundle，或执行 `dsh plugin --profile <profile> remove dsh-code-review`。
+在 profile 的 Plugins 页面移除该 bundle，或执行 `dsh plugin --profile <profile> remove dsh-claude-code-review`。

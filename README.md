@@ -16,10 +16,11 @@ A port of Claude Code's `/code-review` workflow to DeepSeek Harness. It reviews 
 
 This directory is a bundle package. Installing it with **Plugins → Add plugin** (or `plugin_manager` `install_bundle` with this directory as the target) adds the `/code-review` command, the `code-review` skill, and the `code_review_context` tool to every new session in the profile.
 
-It is currently installed into the `desktop` profile as a `link:` dependency pointing at this directory. Moving or deleting this directory disables the plugin; to keep it after moving, reinstall from the new location.
+Installing from a local directory links it into the profile rather than copying it. Moving or deleting this directory therefore disables the plugin; to keep it after moving, reinstall from the new location.
 
 ## Requirements
 
+- DeepSeek Harness 0.2.2 or newer (`engines.dsh` is declared in `package.json`).
 - `git` in the session environment.
 - Pull request mode additionally needs the GitHub CLI (`gh`) installed and authenticated (`gh auth login`). Without it, `/code-review` reviews local changes instead.
 - The session's agent preset must expose `subagent` and `read` for the full workflow; `bash` is only needed for `--post`. Without `subagent`, the methodology falls back to a sequential review.
@@ -34,13 +35,15 @@ It is currently installed into the `desktop` profile as a `link:` dependency poi
 /code-review --local             review local changes against the detected base branch
 /code-review --base develop      review local changes against develop
 /code-review 123 --post          post the report as a pull request comment when issues qualify
-/code-review --threshold 90      raise the confidence threshold
+/code-review --threshold 90      raise the confidence threshold (0 reports every finding)
 /code-review --force             review even when the context says it is ineligible
 /code-review --fast              skip independent verification (noticeably faster, less reliable)
 /code-review --thorough          one verifier per finding instead of one per batch
 ```
 
 The command submits the review workflow to the current session as a collapsed context notice named "code review"; expand the row in the transcript to read the exact instructions. The report appears in chat when the review finishes. The `code-review` skill exposes the same workflow to the model when you ask for a review in ordinary prose.
+
+`--base` implies `--local` and cannot be combined with `--pr`; a pull request target cannot be combined with `--local`. `--threshold` accepts `0` to report every finding regardless of confidence.
 
 ## Review packet
 
@@ -50,7 +53,7 @@ Each run writes a temporary directory under the system temp directory:
 - `verify.md` — target facts, guidance, diff, and the confidence rubric for the verification pass.
 - `context.md` and `diff.patch` — reference copies for the main agent; it does not need to read the diff.
 
-The tool never writes into the repository and never posts anything.
+The tool never writes into the repository and never posts anything. Packets are left for inspection but expire: the next run prunes `dsh-claude-code-review-*` directories older than 24 hours.
 
 ## Performance
 
@@ -70,7 +73,7 @@ Patch the `code-review` row's config in the profile's `cordis.patch.yml`:
 
 | Field | Default | Meaning |
 |---|---|---|
-| `threshold` | `80` | Confidence threshold used by `/code-review` when no `--threshold` is given |
+| `threshold` | `80` | Confidence threshold used by `/code-review` when no `--threshold` is given (`0`–`100`; `0` reports every finding) |
 | `maxDiffBytes` | `120000` | Diff bytes kept in the packet; larger diffs are truncated at a line boundary |
 | `verificationMode` | `balanced` | `balanced` (one verifier per batch), `fast` (no verifier), or `thorough` (one verifier per finding) |
 | `maxCodeContextBytes` | `180000` | Surrounding-code bytes kept in role files |
@@ -89,11 +92,14 @@ Patch the `code-review` row's config in the profile's `cordis.patch.yml`:
 | `maxGuidanceFileBytes` | `32768` | Per-file guidance cap |
 | `maxDiscussionItems` | `20` | Prior pull request comments/reviews kept |
 | `maxDiscussionChars` | `4000` | Per-comment cap |
+| `maxDiscussionPages` | `5` | Pages of 100 comments fetched per discussion source |
 | `skipDrafts` | `false` | Treat draft pull requests as ineligible |
 | `skipAlreadyReviewed` | `false` | Treat a pull request whose head commit already carries a DSH review marker as ineligible |
 | `base` | detected | Default local comparison base |
 | `gitTimeoutMs` | `30000` | Per-command git timeout |
 | `ghTimeoutMs` | `25000` | Per-command gh timeout |
+
+Configuration is validated when the plugin activates: unknown keys, wrong types, out-of-range numbers, and unknown `verificationMode` values fail with a message naming the field instead of being silently ignored. Values are set on the `code-review` row in `cordis.patch.yml`; the bundle does not ship a Config schema because a dependency-free linked bundle cannot resolve the DSH Schemastery package.
 
 ## What it deliberately does not do
 
@@ -115,6 +121,16 @@ locale/                 Plugin Manager titles and descriptions
 docs/                   Detail page and feature image
 ```
 
+## Development
+
+The bundle has no runtime dependencies. Run the tests with:
+
+```
+node --test
+```
+
+The suite creates temporary git repositories; it needs `git` but no network access or `gh` authentication.
+
 ## Uninstall
 
-Remove the bundle from the profile's Plugins page, or with `dsh plugin --profile <profile> remove dsh-code-review`.
+Remove the bundle from the profile's Plugins page, or with `dsh plugin --profile <profile> remove dsh-claude-code-review`.
