@@ -1,5 +1,7 @@
 # Code review for DeepSeek Harness
 
+**English** | [简体中文](README.zh.md)
+
 A port of Claude Code's `/code-review` workflow to DeepSeek Harness. It reviews a pull request, a branch, or uncommitted local changes with several independent review agents, scores every finding for confidence, and reports only issues that clear the threshold.
 
 ## What it does
